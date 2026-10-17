@@ -14,6 +14,7 @@ Built in layers. Each phase works on its own, so Bolt gets smarter step by step.
 - [ ] **Picked up / fallen over**: the motion sensor notices, he gets back up or "complains"
 - [ ] **Turn to sound**: looks toward a clap or a voice (sound direction sensor)
 - [ ] **Low battery**: gets sleepy, lies down and asks to be charged
+- [ ] **Emergency stop**: "Bolt, stop!" or one key on the laptop freezes him instantly
 
 ## Phase 3: Voice
 - [ ] **Wake word "Bolt"**: he only listens after hearing his name
@@ -31,11 +32,13 @@ Built in layers. Each phase works on its own, so Bolt gets smarter step by step.
 ## Phase 5: Brain (the agentic part)
 - [ ] **Multi-step missions**: "turn right, walk 1 metre, if someone is sitting there say hi"
 - [ ] **Re-planning**: if blocked, he finds another way or tells you what happened
+- [ ] **Room map**: learns places from where he has walked, so "go to the sofa" works
 - [ ] **Swappable AI**: Grok free tier first, Claude later, one setting in `.env`
 
 ## Phase 6: Feelings and memory (the "real animal" part)
 - [ ] **Drives**: energy, happiness, curiosity, boredom rise and fall over time
 - [ ] **Acts on his own**: explores when bored, naps when tired, seeks you when lonely
+- [ ] **Idle life and day rhythm**: sniffs, stretches and wanders; sleepy at night, lively in the morning
 - [ ] **Memory**: remembers names, tricks you taught him and what happened today
 - [ ] **Personality**: grows over days based on how you treat him
 - [ ] **Daily diary**: tells you about his day in the evening
@@ -45,6 +48,7 @@ Built in layers. Each phase works on its own, so Bolt gets smarter step by step.
 - [ ] **Guard mode**: patrols and barks if someone unknown appears, sends you a photo
 - [ ] **Phone remote**: control and watch his camera from your phone
 - [ ] **Games**: fetch the ball, hide and seek, follow the leader
+- [ ] **Photo mode**: "Bolt, take a picture of me"
 
 ## Honest limits
 - Distance and turns are approximate (about 10 to 20% off) since he walks rather than rolls.
