@@ -41,7 +41,7 @@ Bolt should stand, wag his tail, bark once and lie down.
 ## Status
 
 - [x] Pi OS and SunFounder libraries
-- [ ] Servo zeroing and assembly
+- [ ] Servo zeroing and assembly (see [docs/assembly-plan.md](docs/assembly-plan.md))
 - [ ] First moves (`hello_bolt.py`)
 - [ ] Voice in and voice out
 - [ ] AI brain picking actions and replies
