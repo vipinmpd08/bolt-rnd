@@ -1,0 +1,19 @@
+# Secrets: never commit these
+.env
+*.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Recordings and logs
+*.wav
+*.log
+!sounds/*.wav
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
