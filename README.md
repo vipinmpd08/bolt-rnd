@@ -45,3 +45,5 @@ Bolt should stand, wag his tail, bark once and lie down.
 - [ ] First moves (`hello_bolt.py`)
 - [ ] Voice in and voice out
 - [ ] AI brain picking actions and replies
+
+See the full [feature roadmap](docs/features.md).
