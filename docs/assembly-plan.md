@@ -1,6 +1,6 @@
 # Bolt assembly plan (PiDog V1)
 
-Seven short sessions. Tick them off as you go. Always follow the **printed manual** first; SunFounder says the videos can differ slightly.
+Seven short sessions. Building takes several times longer than watching, so pause the videos often. Tick them off as you go. Always follow the **printed manual** first; SunFounder says the videos can differ slightly.
 
 - Video 1, body and four legs: https://www.youtube.com/watch?v=PTo6smSIlDY
 - Video 2, head and calibration: https://www.youtube.com/watch?v=witCWeoHTdk
@@ -22,9 +22,10 @@ Plug the servo into **P11**. The shaft snaps to 0°. Fit it into the body as the
 - [ ] **1. Body frame (video 1).** Build the main body. Mount the Pi and Robot HAT with just enough screws to hold them, so the Pi is easy to take out later. Connect the battery and check the Pi boots from it.
 - [ ] **2. Front legs (video 1).** Two legs, two servos each. Zero each servo just before fitting it.
 - [ ] **3. Back legs (video 1).** Same as the front legs. After this, Bolt has a body and four legs.
-- [ ] **4. Head and tail (video 2).** Neck servos, camera, ultrasonic sensor, touch sensor, LED strip and the tail servo. Zero every servo first.
+- [ ] **4. Head and tail (video 2, 0:00 to 14:40).** Neck servos, camera, ultrasonic sensor, touch sensor, LED strip and the tail servo. Zero every servo first.
+  - Video 2 chapters: 1:28 and 3:16 neck servos, 5:50 neck and head linkage, 9:27 camera, 10:59 head sensors, 14:02 cable tidying.
 - [ ] **5. Wiring.** Plug each servo into the port shown in the manual. The camera ribbon goes into the Pi's **CAMERA** port (not DISPLAY). Tidy the cables so no leg can catch them.
-- [ ] **6. Calibrate and first moves (video 2).** Put Bolt on a flat table and run `sudo python3 0_calibration.py` in `~/pidog/examples` with the acrylic ruler. Then run `sudo python3 ~/bolt-rnd/hello_bolt.py`. 🎉
+- [ ] **6. Calibrate and first moves (video 2, from 14:40).** Put Bolt on a flat table and run `sudo python3 0_calibration.py` in `~/pidog/examples` with the acrylic ruler. Then run `sudo python3 ~/bolt-rnd/hello_bolt.py`. 🎉
 
 ## Port reference (from the pidog library)
 
