@@ -1,6 +1,6 @@
 # Bolt assembly plan (PiDog V1)
 
-Seven short sessions. Building takes several times longer than watching, so pause the videos often. Tick them off as you go. Always follow the **printed manual** first; SunFounder says the videos can differ slightly.
+Eight short sessions. Building takes several times longer than watching, so pause the videos often. Tick them off as you go. Always follow the **printed manual** first; SunFounder says the videos can differ slightly.
 
 - Video 1, body and four legs: https://www.youtube.com/watch?v=PTo6smSIlDY
 - Video 2, head and calibration: https://www.youtube.com/watch?v=witCWeoHTdk
@@ -19,6 +19,7 @@ Plug the servo into **P11**. The shaft snaps to 0°. Fit it into the body as the
 ## Sessions
 
 - [ ] **0. Prep (about 20 min).** Check every part against the manual's parts list. Sort the screws by size into a tray. Put the battery on charge.
+- [ ] **0b. Bench test (about 20 min).** Before building, plug the parts into the Robot HAT on the table and run SunFounder's tests in `~/pidog/basic_examples`: `7_sound_effect.py` (speaker), `8_ultrasonic_read.py`, `10_imu_read.py`, `11_sound_direction_read.py`, `12_dual_touch_read.py`, `13_camera_easy_use.py`. Any faulty part: photo or video to service@sunfounder.com for a replacement. Servos get tested during zeroing (each should twitch and snap to 0°; set aside any that don't move, buzz or get hot).
 - [ ] **1. Body frame (video 1).** Build the main body. Mount the Pi and Robot HAT with just enough screws to hold them, so the Pi is easy to take out later. Connect the battery and check the Pi boots from it.
 - [ ] **2. Front legs (video 1).** Two legs, two servos each. Zero each servo just before fitting it.
 - [ ] **3. Back legs (video 1).** Same as the front legs. After this, Bolt has a body and four legs.
