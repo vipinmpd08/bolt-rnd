@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Bench test for Bolt: checks every sensor before assembly.
 
-Plug the sensors into the Robot HAT on the table, switch the battery on, then run:
+Plug a sensor into the Robot HAT on the table, switch the battery on, then test it on its own:
+    sudo python3 bench_test.py touch
+
+Tests: speaker, leds, ultrasonic, touch, sound, imu, camera.
+Run with no name to test everything in one go:
     sudo python3 bench_test.py
 
 Each test tells you what to do (wave a hand, touch, clap...) and prints PASS or FAIL.
@@ -9,6 +13,7 @@ Servos are tested separately during zeroing (servo_zeroing.py).
 """
 
 import subprocess
+import sys
 import time
 
 from pidog import Pidog
@@ -96,18 +101,33 @@ def camera():
     return True
 
 
-bolt = Pidog()
-try:
-    run("Speaker", speaker)
-    run("LED strip", leds)
-    run("Ultrasonic", ultrasonic)
-    run("Touch", touch)
-    run("Sound direction", sound_direction)
-    run("IMU (motion sensor)", imu)
-finally:
-    bolt.close()
+TESTS = {
+    "speaker": ("Speaker", speaker),
+    "leds": ("LED strip", leds),
+    "ultrasonic": ("Ultrasonic", ultrasonic),
+    "touch": ("Touch", touch),
+    "sound": ("Sound direction", sound_direction),
+    "imu": ("IMU (motion sensor)", imu),
+    "camera": ("Camera", camera),
+}
 
-run("Camera", camera)
+chosen = sys.argv[1:] or list(TESTS)
+unknown = [c for c in chosen if c not in TESTS]
+if unknown:
+    sys.exit(f"Unknown test: {', '.join(unknown)}. Choose from: {', '.join(TESTS)}")
+
+needs_dog = any(c != "camera" for c in chosen)
+bolt = Pidog() if needs_dog else None
+try:
+    for key in chosen:
+        if key != "camera":
+            run(*TESTS[key])
+finally:
+    if bolt:
+        bolt.close()
+
+if "camera" in chosen:
+    run(*TESTS["camera"])
 
 print("\n=== Summary ===")
 for name, ok in results.items():
