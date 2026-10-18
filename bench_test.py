@@ -4,21 +4,22 @@
 Plug a sensor into the Robot HAT on the table, switch the battery on, then test it on its own:
     sudo python3 bench_test.py touch
 
-Tests: speaker, leds, ultrasonic, touch, sound, imu, camera.
-Run with no name to test everything in one go:
+Tests: i2c, battery, speaker, leds, ultrasonic, touch, sound, imu, camera.
+Test one loose servo plugged into port P0 to P11 (it wiggles, then parks at 0):
+    sudo python3 bench_test.py servo 3
+Run with no name to test every sensor in one go:
     sudo python3 bench_test.py
 
 Each test tells you what to do (wave a hand, touch, clap...) and prints PASS or FAIL.
-Servos are tested separately during zeroing (servo_zeroing.py).
+The V1 Robot HAT has no microphone, so there is no mic test.
 """
 
 import subprocess
 import sys
 import time
 
-from pidog import Pidog
-
 results = {}
+bolt = None
 
 
 def run(name, test):
@@ -29,6 +30,34 @@ def run(name, test):
         print(f"  error: {e}")
         results[name] = False
     print("  PASS" if results[name] else "  FAIL")
+
+
+def i2c():
+    out = subprocess.run(["i2cdetect", "-y", "1"], capture_output=True, text=True).stdout
+    found = {a for line in out.splitlines()[1:] for a in line.split()[1:]}
+    for addr, part in [("14", "Robot HAT"), ("36", "IMU"), ("74", "LED strip")]:
+        print(f"  0x{addr} {part}: {'found' if addr in found else 'missing'}")
+    return "14" in found
+
+
+def battery():
+    from robot_hat import utils
+    v = utils.get_battery_voltage()
+    print(f"  battery: {v:.2f} V (full is about 8.4 V, charge below 7 V)")
+    return v > 6.5
+
+
+def servo(port):
+    from robot_hat import Servo
+    from robot_hat.utils import reset_mcu
+    reset_mcu()
+    time.sleep(1)
+    s = Servo(port)
+    print(f"  The servo on P{port} should turn one way, then the other, then stop in the middle.")
+    for angle in (30, -30, 30, -30, 0):
+        s.angle(angle)
+        time.sleep(0.6)
+    return input("  Did it move smoothly? (y/n) ").strip().lower().startswith("y")
 
 
 def speaker():
@@ -102,6 +131,8 @@ def camera():
 
 
 TESTS = {
+    "i2c": ("I2C bus", i2c),
+    "battery": ("Battery", battery),
     "speaker": ("Speaker", speaker),
     "leds": ("LED strip", leds),
     "ultrasonic": ("Ultrasonic", ultrasonic),
@@ -110,24 +141,34 @@ TESTS = {
     "imu": ("IMU (motion sensor)", imu),
     "camera": ("Camera", camera),
 }
+# These talk to the part directly, without starting the whole dog
+NO_DOG = {"i2c", "battery", "camera"}
 
-chosen = sys.argv[1:] or list(TESTS)
+args = sys.argv[1:]
+if args[:1] == ["servo"]:
+    if len(args) != 2 or not args[1].isdigit() or not 0 <= int(args[1]) <= 11:
+        sys.exit("Usage: sudo python3 bench_test.py servo <port 0-11>")
+    port = int(args[1])
+    run(f"Servo P{port}", lambda: servo(port))
+    sys.exit(0 if all(results.values()) else 1)
+
+chosen = args or list(TESTS)
 unknown = [c for c in chosen if c not in TESTS]
 if unknown:
-    sys.exit(f"Unknown test: {', '.join(unknown)}. Choose from: {', '.join(TESTS)}")
+    sys.exit(f"Unknown test: {', '.join(unknown)}. Choose from: {', '.join(TESTS)}, servo <port>")
 
-needs_dog = any(c != "camera" for c in chosen)
-bolt = Pidog() if needs_dog else None
-try:
-    for key in chosen:
-        if key != "camera":
+for key in [c for c in chosen if c in NO_DOG]:
+    run(*TESTS[key])
+
+dog_tests = [c for c in chosen if c not in NO_DOG]
+if dog_tests:
+    from pidog import Pidog
+    bolt = Pidog()
+    try:
+        for key in dog_tests:
             run(*TESTS[key])
-finally:
-    if bolt:
+    finally:
         bolt.close()
-
-if "camera" in chosen:
-    run(*TESTS["camera"])
 
 print("\n=== Summary ===")
 for name, ok in results.items():
