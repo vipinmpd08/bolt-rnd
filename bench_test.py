@@ -2,15 +2,17 @@
 """Bench test for Bolt: checks every sensor before assembly.
 
 Plug a sensor into the Robot HAT on the table, switch the battery on, then test it on its own:
-    sudo python3 bench_test.py touch
+    python3 bench_test.py touch
 
 Tests: i2c, battery, speaker, leds, ultrasonic, touch, sound, imu, camera.
 Test one loose servo plugged into port P0 to P11 (turns +30, then -30, then stops at 0, which zeroes it):
-    sudo python3 bench_test.py servo 3
+    python3 bench_test.py servo 3
 Run with no name to test every sensor in one go:
-    sudo python3 bench_test.py
+    python3 bench_test.py
 
 Each test tells you what to do (wave a hand, touch, clap...) and prints PASS or FAIL.
+Every test talks to its part directly, so servos never move except in the servo test.
+Don't use sudo: it clashes with the Pi's sound system.
 The V1 Robot HAT has no microphone, so there is no mic test.
 """
 
@@ -20,7 +22,6 @@ import sys
 import time
 
 results = {}
-bolt = None
 
 
 def run(name, test):
@@ -62,7 +63,7 @@ def servo(port):
 
 
 def speaker():
-    # Uses robot_hat's player directly: no full dog start (servos stay still), no sudo prompt
+    # robot_hat's player directly: pidog's speak() runs sudo and asks for a password
     from robot_hat import Music
     music = Music()
     sounds = os.path.expanduser("~/pidog/sounds/")
@@ -77,18 +78,24 @@ def speaker():
 
 
 def leds():
-    bolt.rgb_strip.set_mode("breath", "cyan", bps=1)
-    print("  The LED strip should glow cyan.")
-    ok = input("  Is it glowing? (y/n) ").strip().lower().startswith("y")
-    bolt.rgb_strip.close()
-    return ok
+    from pidog.rgb_strip import RGBStrip
+    strip = RGBStrip(addr=0x74, nums=11)
+    colors = [("red", [255, 0, 0]), ("green", [0, 255, 0]), ("blue", [0, 0, 255]), ("white", [255, 255, 255])]
+    for name, rgb in colors:
+        print(f"  all 11 lights: {name}")
+        strip.display([rgb] * 11)
+        time.sleep(2)
+    strip.display([[0, 0, 0]] * 11)
+    return input("  Did all 11 light up in every colour? (y/n) ").strip().lower().startswith("y")
 
 
 def ultrasonic():
+    from robot_hat import Pin, Ultrasonic
+    sensor = Ultrasonic(Pin("D1"), Pin("D0"), timeout=0.017)
     print("  Move your hand closer to and further from the sensor for 5 seconds.")
     readings = []
     for _ in range(10):
-        d = bolt.read_distance()
+        d = sensor.read()
         readings.append(d)
         print(f"  distance: {d} cm")
         time.sleep(0.5)
@@ -97,10 +104,12 @@ def ultrasonic():
 
 
 def touch():
+    from pidog.dual_touch import DualTouch
+    sensor = DualTouch("D2", "D3")
     print("  Touch the touch sensor a few times in the next 10 seconds.")
     end = time.time() + 10
     while time.time() < end:
-        state = bolt.dual_touch.read()
+        state = sensor.read()
         if state != "N":
             print(f"  touch detected: {state}")
             return True
@@ -109,21 +118,28 @@ def touch():
 
 
 def sound_direction():
+    from pidog.sound_direction import SoundDirection
+    ears = SoundDirection()
     print("  Clap loudly near the sound sensor in the next 10 seconds.")
-    end = time.time() + 10
-    while time.time() < end:
-        if bolt.ears.isdetected():
-            print(f"  sound from {bolt.ears.read()} degrees")
-            return True
-        time.sleep(0.05)
-    return False
+    try:
+        end = time.time() + 10
+        while time.time() < end:
+            if ears.isdetected():
+                print(f"  sound from {ears.read()} degrees")
+                return True
+            time.sleep(0.05)
+        return False
+    finally:
+        ears.close()
 
 
 def imu():
+    from pidog.sh3001 import Sh3001
+    sensor = Sh3001(db=os.path.expanduser("~/.config/pidog/pidog.conf"))
     print("  Tilt the IMU board slowly for 5 seconds.")
     samples = []
     for _ in range(25):
-        samples.append(list(bolt.accData))
+        samples.append(list(sensor._sh3001_getimudata()[0]))
         time.sleep(0.2)
     print(f"  first: {samples[0]}  last: {samples[-1]}")
     spread = max(max(s[i] for s in samples) - min(s[i] for s in samples) for i in range(3))
@@ -151,13 +167,10 @@ TESTS = {
     "imu": ("IMU (motion sensor)", imu),
     "camera": ("Camera", camera),
 }
-# These talk to the part directly, without starting the whole dog
-NO_DOG = {"i2c", "battery", "speaker", "camera"}
-
 args = sys.argv[1:]
 if args[:1] == ["servo"]:
     if len(args) != 2 or not args[1].isdigit() or not 0 <= int(args[1]) <= 11:
-        sys.exit("Usage: sudo python3 bench_test.py servo <port 0-11>")
+        sys.exit("Usage: python3 bench_test.py servo <port 0-11>")
     port = int(args[1])
     run(f"Servo P{port}", lambda: servo(port))
     sys.exit(0 if all(results.values()) else 1)
@@ -167,18 +180,8 @@ unknown = [c for c in chosen if c not in TESTS]
 if unknown:
     sys.exit(f"Unknown test: {', '.join(unknown)}. Choose from: {', '.join(TESTS)}, servo <port>")
 
-for key in [c for c in chosen if c in NO_DOG]:
+for key in chosen:
     run(*TESTS[key])
-
-dog_tests = [c for c in chosen if c not in NO_DOG]
-if dog_tests:
-    from pidog import Pidog
-    bolt = Pidog()
-    try:
-        for key in dog_tests:
-            run(*TESTS[key])
-    finally:
-        bolt.close()
 
 print("\n=== Summary ===")
 for name, ok in results.items():
