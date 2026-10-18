@@ -71,7 +71,7 @@ def speaker():
         print(f"  bark {i + 1}")
         # Two barks back to back make one longer bark
         for name in ("single_bark_1", "single_bark_2"):
-            music.sound_play(f"{sounds}{name}.mp3", 90)
+            music.sound_play(f"{sounds}{name}.mp3", 100)
         time.sleep(0.5)
     return input("  Did you hear all 5? (y/n) ").strip().lower().startswith("y")
 
