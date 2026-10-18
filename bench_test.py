@@ -67,9 +67,10 @@ def speaker():
     print("  You should hear 5 long barks.")
     for i in range(5):
         print(f"  bark {i + 1}")
-        # Two barks back to back make one longer bark
-        bolt.speak_block("single_bark_1", volume=90)
-        bolt.speak_block("single_bark_2", volume=90)
+        # Two barks back to back make one longer bark. Play them directly:
+        # speak_block() runs "sudo killall pulseaudio", which asks for a password.
+        for name in ("single_bark_1", "single_bark_2"):
+            bolt.music.sound_play(f"{bolt.SOUND_DIR}{name}.mp3", 90)
         time.sleep(0.5)
     return input("  Did you hear all 5? (y/n) ").strip().lower().startswith("y")
 
