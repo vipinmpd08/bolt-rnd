@@ -61,9 +61,17 @@ def servo(port):
 
 
 def speaker():
-    print("  You should hear a bark.")
-    bolt.speak_block("single_bark_1", volume=80)
-    return input("  Did you hear it? (y/n) ").strip().lower().startswith("y")
+    if not hasattr(bolt, "music"):
+        print("  Sound player didn't start. If you used sudo, try again without it.")
+        return False
+    print("  You should hear 5 long barks.")
+    for i in range(5):
+        print(f"  bark {i + 1}")
+        # Two barks back to back make one longer bark
+        bolt.speak_block("single_bark_1", volume=80)
+        bolt.speak_block("single_bark_2", volume=80)
+        time.sleep(0.5)
+    return input("  Did you hear all 5? (y/n) ").strip().lower().startswith("y")
 
 
 def leds():
