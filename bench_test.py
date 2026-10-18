@@ -4,7 +4,7 @@
 Plug a sensor into the Robot HAT on the table, switch the battery on, then test it on its own:
     python3 bench_test.py touch
 
-Tests: i2c, battery, speaker, leds, ultrasonic, touch, sound, imu, camera.
+Tests: i2c, battery, speaker, leds, ultrasonic, touch, sound, imu, mic, camera.
 Test one loose servo plugged into port P0 to P11 (turns +30, then -30, then stops at 0, which zeroes it):
     python3 bench_test.py servo 3
 Run with no name to test every sensor in one go:
@@ -13,13 +13,15 @@ Run with no name to test every sensor in one go:
 Each test tells you what to do (wave a hand, touch, clap...) and prints PASS or FAIL.
 Every test talks to its part directly, so servos never move except in the servo test.
 Don't use sudo: it clashes with the Pi's sound system.
-The V1 Robot HAT has no microphone, so there is no mic test.
+The V1 Robot HAT has no microphone; the mic test uses the kit's USB mic.
 """
 
+import array
 import os
 import subprocess
 import sys
 import time
+import wave
 
 results = {}
 
@@ -146,6 +148,33 @@ def imu():
     return spread > 2000
 
 
+def mic():
+    out = subprocess.run(["arecord", "-l"], capture_output=True, text=True).stdout
+    cards = [line for line in out.splitlines() if line.startswith("card ") and "USB" in line]
+    if not cards:
+        print("  No USB mic found. Plug it into a USB port on the Pi.")
+        return False
+    card = cards[0].split()[1].rstrip(":")
+    print(f"  found: {cards[0]}")
+    wav = "/tmp/bolt_mic.wav"
+    print("  Talk now for 3 seconds...")
+    rec = subprocess.run(["arecord", "-D", f"plughw:{card},0", "-f", "S16_LE", "-r", "16000",
+                          "-c", "1", "-d", "3", "-q", wav], capture_output=True, text=True)
+    if rec.returncode != 0:
+        print(f"  recording failed: {rec.stderr.strip()}")
+        return False
+    # Loudest sample, to catch a mic that records only silence
+    with wave.open(wav) as w:
+        samples = array.array("h", w.readframes(w.getnframes()))
+    peak = max((abs(x) for x in samples), default=0)
+    print(f"  loudest sound: {peak * 100 // 32768}% of full scale")
+    print("  Playing it back...")
+    subprocess.run(["pw-play", wav])
+    if peak < 1000:
+        print("  Very quiet. Raise the mic level in alsamixer (F6, pick the USB mic, F4).")
+    return input("  Did you hear your voice? (y/n) ").strip().lower().startswith("y")
+
+
 def camera():
     out = subprocess.run(["rpicam-still", "-n", "-t", "1000", "-o", "/tmp/bolt_test.jpg"],
                          capture_output=True, text=True)
@@ -165,6 +194,7 @@ TESTS = {
     "touch": ("Touch", touch),
     "sound": ("Sound direction", sound_direction),
     "imu": ("IMU (motion sensor)", imu),
+    "mic": ("USB microphone", mic),
     "camera": ("Camera", camera),
 }
 args = sys.argv[1:]
