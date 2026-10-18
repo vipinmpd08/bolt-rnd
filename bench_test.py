@@ -68,8 +68,8 @@ def speaker():
     for i in range(5):
         print(f"  bark {i + 1}")
         # Two barks back to back make one longer bark
-        bolt.speak_block("single_bark_1", volume=80)
-        bolt.speak_block("single_bark_2", volume=80)
+        bolt.speak_block("single_bark_1", volume=90)
+        bolt.speak_block("single_bark_2", volume=90)
         time.sleep(0.5)
     return input("  Did you hear all 5? (y/n) ").strip().lower().startswith("y")
 
