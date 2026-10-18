@@ -35,5 +35,12 @@ Plug the servo into **P11**. The shaft snaps to 0°. Fit it into the body as the
 | Legs (8 servos) | P0, P1, P2, P3, P7, P8, P10, P11 |
 | Head (3 servos) | P4, P5, P6 |
 | Tail (1 servo) | P9 |
+| Ultrasonic (nose) | D0 (echo) and D1 (trig) |
+| Touch sensor (head) | D2 and D3 |
+| Sound direction sensor | SPI header (4-wire cable, busy pin 6) |
+| IMU (6-axis, body) | I2C |
+| LED strip (chest) | I2C |
+| Camera | Pi CAMERA port, not DISPLAY |
+| Speaker | Built into the Robot HAT |
 
 The manual shows which leg servo goes in which of those ports.
