@@ -5,7 +5,7 @@ Plug a sensor into the Robot HAT on the table, switch the battery on, then test 
     sudo python3 bench_test.py touch
 
 Tests: i2c, battery, speaker, leds, ultrasonic, touch, sound, imu, camera.
-Test one loose servo plugged into port P0 to P11 (it wiggles, then parks at 0):
+Test one loose servo plugged into port P0 to P11 (turns +30, then -30, then stops at 0, which zeroes it):
     sudo python3 bench_test.py servo 3
 Run with no name to test every sensor in one go:
     sudo python3 bench_test.py
@@ -53,10 +53,10 @@ def servo(port):
     reset_mcu()
     time.sleep(1)
     s = Servo(port)
-    print(f"  The servo on P{port} should turn one way, then the other, then stop in the middle.")
-    for angle in (30, -30, 30, -30, 0):
+    for angle, label in ((30, "+30 degrees"), (-30, "-30 degrees"), (0, "0 (zeroed)")):
+        print(f"  P{port} -> {label}")
         s.angle(angle)
-        time.sleep(0.6)
+        time.sleep(1)
     return input("  Did it move smoothly? (y/n) ").strip().lower().startswith("y")
 
 
