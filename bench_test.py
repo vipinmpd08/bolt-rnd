@@ -14,6 +14,7 @@ Each test tells you what to do (wave a hand, touch, clap...) and prints PASS or 
 The V1 Robot HAT has no microphone, so there is no mic test.
 """
 
+import os
 import subprocess
 import sys
 import time
@@ -61,16 +62,16 @@ def servo(port):
 
 
 def speaker():
-    if not hasattr(bolt, "music"):
-        print("  Sound player didn't start. If you used sudo, try again without it.")
-        return False
+    # Uses robot_hat's player directly: no full dog start (servos stay still), no sudo prompt
+    from robot_hat import Music
+    music = Music()
+    sounds = os.path.expanduser("~/pidog/sounds/")
     print("  You should hear 5 long barks.")
     for i in range(5):
         print(f"  bark {i + 1}")
-        # Two barks back to back make one longer bark. Play them directly:
-        # speak_block() runs "sudo killall pulseaudio", which asks for a password.
+        # Two barks back to back make one longer bark
         for name in ("single_bark_1", "single_bark_2"):
-            bolt.music.sound_play(f"{bolt.SOUND_DIR}{name}.mp3", 90)
+            music.sound_play(f"{sounds}{name}.mp3", 90)
         time.sleep(0.5)
     return input("  Did you hear all 5? (y/n) ").strip().lower().startswith("y")
 
@@ -151,7 +152,7 @@ TESTS = {
     "camera": ("Camera", camera),
 }
 # These talk to the part directly, without starting the whole dog
-NO_DOG = {"i2c", "battery", "camera"}
+NO_DOG = {"i2c", "battery", "speaker", "camera"}
 
 args = sys.argv[1:]
 if args[:1] == ["servo"]:
