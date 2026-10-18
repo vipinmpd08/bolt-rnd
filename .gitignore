@@ -17,3 +17,6 @@ venv/
 .vscode/
 .idea/
 .DS_Store
+
+# Downloaded packages
+*.whl
