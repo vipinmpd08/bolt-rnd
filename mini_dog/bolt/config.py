@@ -28,6 +28,8 @@ VOLUME = float(_get("VOLUME", "0.8"))
 WAKE_WORDS = [w.strip().lower() for w in _get("WAKE_WORDS", "bolt,bold,volt,boult,bolts").split(",") if w.strip()]
 # Seconds to wait for a question after you say just "Bolt"
 FOLLOW_UP_SECONDS = float(_get("FOLLOW_UP_SECONDS", "8"))
+# After Bolt answers, how long you can keep talking without saying his name
+CONVERSATION_SECONDS = float(_get("CONVERSATION_SECONDS", "30"))
 
 VOSK_MODEL = _get("VOSK_MODEL", "/models/vosk")
 PIPER_VOICE = _get("PIPER_VOICE", "/models/piper/voice.onnx")

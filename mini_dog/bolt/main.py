@@ -35,18 +35,24 @@ class Bolt:
         if messages:
             self.brain.update_state(THREAD, {"messages": messages}, as_node="command")
 
-    def answer(self, text, audio=None):
-        """text: what Vosk heard; audio: raw PCM of it, which Whisper turns into better text."""
-        log.info("You said: %s", text)
+    def answer(self, text, audio=None, mode="wake"):
+        """text: what Vosk heard; audio: raw PCM of it, which Whisper turns into better text.
+
+        mode "follow" means no "Bolt" was said, so the router decides if it was meant for him.
+        Returns the reply, or None when the router ignored it.
+        """
+        log.info("You said (%s): %s", mode, text)
         audio_id = ""
         if audio:
             audio_id = str(next(self.ids))
             self.audio[audio_id] = audio
-        out = self.brain.invoke({"text": text, "audio_id": audio_id}, THREAD)
+        out = self.brain.invoke({"text": text, "audio_id": audio_id, "mode": mode}, THREAD)
         self.audio.pop(audio_id, None)
         self.turns += 1
         if self.turns % COMPACT_EVERY == 0:
             self._compact()
+        if out.get("route") == "ignore":
+            return None
         action = out.get("action", "")
         if action == "sleep":
             self.asleep = True
@@ -75,10 +81,20 @@ def listen_forever():
             ears.unmute()
 
     speak("Woof! Bolt is listening.")
-    waiting_until = 0.0  # after a bare "Bolt", the next sentence is the question
+    waiting_until = 0.0       # after a bare "Bolt", the next sentence is the question
+    conversation_until = 0.0  # after he answers, you can keep talking without his name
     for heard, heard_name, audio in ears.sentences():
-        log.info("Heard: %s%s", heard, "  [name]" if heard_name else "")
+        now = time.time()
         woke, rest = split_wake_word(heard, heard_name)
+        if woke:
+            state = "name"
+        elif now < waiting_until:
+            state = "after Yes?"
+        elif now < conversation_until:
+            state = f"conversation, {conversation_until - now:.0f}s left"
+        else:
+            state = "not for Bolt"
+        log.info("Heard: %s  [%s]", heard, state)
         if bolt.asleep:
             if woke and "wake" in rest:
                 speak(bolt.answer(rest))
@@ -88,13 +104,20 @@ def listen_forever():
             waiting_until = time.time() + config.FOLLOW_UP_SECONDS
             continue
         if woke:
-            question = rest
-        elif time.time() < waiting_until:
-            question = heard
+            reply = bolt.answer(rest, audio)
+        elif now < waiting_until:
+            reply = bolt.answer(heard, audio)
+        elif now < conversation_until:
+            reply = bolt.answer(heard, audio, mode="follow")
         else:
             continue
         waiting_until = 0.0
-        speak(bolt.answer(question, audio))
+        if reply is None:
+            continue  # the router decided it wasn't meant for him
+        speak(reply)
+        conversation_until = time.time() + config.CONVERSATION_SECONDS
+        if bolt.asleep:
+            conversation_until = 0.0
 
 
 def type_forever():
@@ -105,9 +128,12 @@ def type_forever():
             self.volume = v
 
     bolt = Bolt(Silent())
-    for line in sys.stdin:
-        if line.strip():
-            print("Bolt:", bolt.answer(line.strip()), flush=True)
+    for line in sys.stdin:  # start a line with "~" to test it as speech without "Bolt"
+        line = line.strip()
+        if line:
+            mode = "follow" if line.startswith("~") else "wake"
+            reply = bolt.answer(line.lstrip("~ "), mode=mode)
+            print("Bolt:", reply if reply is not None else "(ignored)", flush=True)
 
 
 if __name__ == "__main__":

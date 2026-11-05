@@ -4,6 +4,9 @@
            |
       transcribe  -- Whisper turns your audio into accurate text
            |
+      router      -- no "Bolt"? is this still our conversation, or talk not meant for him?
+        |     \\
+        |      ignore (stays quiet)
       supervisor  -- picks who answers, by keywords (instant, saves AI quota)
      /   |     |    |    \\
  chat helper news memory command
@@ -11,6 +14,7 @@
           reply  -> spoken by Bolt
 
 - transcribe: Whisper on Groq writes down what you said (falls back to the offline Vosk text)
+- router:  when you didn't say "Bolt" but are still talking to him, decides if it's meant for him
 - chat:    talks in character as a cheeky dog (AI model)
 - helper:  answers with tools: time, date, maths, how his body (the Pi) is doing
 - news:    reads live headlines (Google News) and tells you what's happening, in any country
@@ -45,6 +49,7 @@ class State(TypedDict):
     messages: Annotated[list, add_messages]
     text: str         # what Vosk heard (replaced by Whisper's text in transcribe)
     audio_id: str     # key into the waiting audio; the audio itself stays out of the saved state
+    mode: str         # "wake": you said "Bolt"; "follow": no name, said during a conversation
     route: str
     reply: str
     action: str
@@ -75,6 +80,18 @@ def _clean(text):
 
 def _system():
     return SystemMessage(content="\n".join(x for x in (PERSONA, _facts_text()) if x))
+
+
+# What Whisper tends to write for background noise
+NOISE = {"", "you", "thank you", "thanks", "thank you for watching", "bye", "okay", "ok", "hmm", "um", "uh"}
+
+ROUTER_PROMPT = (
+    "You are the ears of Bolt, a pet dog voice assistant. Bolt is in a conversation with Vipindas. "
+    "The microphone picked up the speech below WITHOUT anyone saying the name Bolt. "
+    "It may be Vipindas still talking to Bolt (a follow-up, an answer to Bolt's question, a new "
+    "request), or it may be talk to someone else, a phone call, TV or noise. "
+    "Reply with exactly one word: YES if it is meant for Bolt, NO if not."
+)
 
 
 def _plain(text):
@@ -118,6 +135,33 @@ def build(llm, whisper=None, audio_store=None):
         text = stt.strip_name(text) or state["text"]
         log.info("Whisper: %s  (Vosk: %s)", text, state["text"])
         return {"text": text, "audio_id": ""}
+
+    gate_llm = llm.bind(max_tokens=5, temperature=0) if llm else None
+
+    def router(state):
+        """Decide if speech without the name is meant for Bolt."""
+        clear = {"reply": "", "action": ""}
+        if state.get("mode") != "follow":
+            return {**clear, "route": "answer"}
+        text = _plain(state["text"])
+        if text in NOISE or len(text.split()) < 2:
+            log.info("Router: ignore (too short or noise): %s", state["text"])
+            return {**clear, "route": "ignore"}
+        if not gate_llm:
+            return {**clear, "route": "answer"}
+        recent = "\n".join(f"{'Vipindas' if isinstance(m, HumanMessage) else 'Bolt'}: {m.content}"
+                           for m in state.get("messages", [])[-6:])
+        try:
+            verdict = _clean(gate_llm.invoke([
+                SystemMessage(content=ROUTER_PROMPT),
+                HumanMessage(content=f"Conversation so far:\n{recent}\n\nNew speech: {state['text']}"),
+            ]).content).upper()
+        except Exception as e:
+            log.warning("Router failed (%s), ignoring", e)
+            verdict = "NO"
+        route = "answer" if verdict.startswith("YES") else "ignore"
+        log.info("Router: %s (%s): %s", route, verdict[:10], state["text"])
+        return {**clear, "route": route}
 
     def supervisor(state):
         text = _plain(state["text"])
@@ -212,6 +256,7 @@ def build(llm, whisper=None, audio_store=None):
 
     g = StateGraph(State)
     g.add_node("transcribe", transcribe)
+    g.add_node("router", router)
     g.add_node("supervisor", supervisor)
     g.add_node("chat", chat)
     g.add_node("helper", helper)
@@ -219,7 +264,8 @@ def build(llm, whisper=None, audio_store=None):
     g.add_node("memory", remember)
     g.add_node("command", command)
     g.add_edge(START, "transcribe")
-    g.add_edge("transcribe", "supervisor")
+    g.add_edge("transcribe", "router")
+    g.add_conditional_edges("router", lambda s: s["route"], {"answer": "supervisor", "ignore": END})
     g.add_conditional_edges("supervisor", lambda s: s["route"],
                             {"chat": "chat", "helper": "helper", "news": "news",
                              "memory": "memory", "command": "command"})
