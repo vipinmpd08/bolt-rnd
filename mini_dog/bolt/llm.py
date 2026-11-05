@@ -14,6 +14,7 @@ def make_llm():
         return ChatOpenAI(
             model=config.GROQ_MODEL, api_key=config.GROQ_API_KEY,
             base_url="https://api.groq.com/openai/v1", temperature=0.8, timeout=30, max_retries=1,
+            max_tokens=200,  # free tiers count this against a tokens-per-minute limit
         )
     if config.LLM_PROVIDER == "grok" and config.XAI_API_KEY:
         from langchain_openai import ChatOpenAI
@@ -22,6 +23,7 @@ def make_llm():
         return ChatOpenAI(
             model=config.XAI_MODEL, api_key=config.XAI_API_KEY,
             base_url="https://api.x.ai/v1", temperature=0.8, timeout=30, max_retries=1,
+            max_tokens=200,  # free tiers count this against a tokens-per-minute limit
         )
     if config.LLM_PROVIDER == "claude" and config.ANTHROPIC_API_KEY:
         from langchain_anthropic import ChatAnthropic

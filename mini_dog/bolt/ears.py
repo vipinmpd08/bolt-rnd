@@ -1,7 +1,11 @@
 """Bolt's ears: always listening to the mic, waiting for his name.
 
-arecord streams raw 16 kHz audio from the USB mic into Vosk, an offline speech
-recogniser. Every finished sentence is checked for the wake word "Bolt".
+arecord streams raw 16 kHz audio from the USB mic into two Vosk recognisers:
+- a "name" recogniser that only knows the word "bolt" (everything else is [unk]),
+  so it picks out his name far better than free speech recognition, which
+  often hears "but", "bald" or "boat";
+- a full recogniser that writes down the whole sentence.
+Both finish each sentence at the same moment, so we know if the name was in it.
 """
 import json
 import logging
@@ -18,12 +22,17 @@ log = logging.getLogger("ears")
 RATE = 16000
 CHUNK = 4000  # bytes, about 1/8 second
 
+# What the full recogniser writes when it mishears "Bolt" at the start of a sentence
+SOUNDALIKES = {"bolt", "bolts", "bold", "volt", "boult", "but", "bart", "bald", "board", "boat", "born",
+               "bob", "ball", "bowl", "bought", "both", "gold", "void", "vault", "boats", "bolton", "colt"}
+
 
 class Ears:
     def __init__(self):
         SetLogLevel(-1)
         self.model = Model(config.VOSK_MODEL)
         self.rec = KaldiRecognizer(self.model, RATE)
+        self.name_rec = KaldiRecognizer(self.model, RATE, json.dumps(["hey bolt", "bolt", "[unk]"]))
         self.muted = threading.Event()  # set while Bolt is talking, so he doesn't hear himself
         self.proc = None
 
@@ -33,7 +42,7 @@ class Ears:
         self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def sentences(self):
-        """Yield every sentence heard, forever. Restarts the mic if it is unplugged."""
+        """Yield (text, heard_name) for every sentence, forever. Restarts the mic if it is unplugged."""
         while True:
             self._start_mic()
             while True:
@@ -42,10 +51,12 @@ class Ears:
                     break
                 if self.muted.is_set():
                     continue
+                self.name_rec.AcceptWaveform(data)
                 if self.rec.AcceptWaveform(data):
                     text = json.loads(self.rec.Result()).get("text", "").strip()
+                    name = json.loads(self.name_rec.FinalResult()).get("text", "")
                     if text:
-                        yield text
+                        yield text, "bolt" in name.split()
             err = self.proc.stderr.read().decode(errors="ignore").strip()
             log.warning("Mic stopped (%s). Retrying in 5 s.", err or "no error text")
             time.sleep(5)
@@ -56,18 +67,25 @@ class Ears:
     def unmute(self):
         # Drop anything half-heard while muted
         self.rec.Reset()
+        self.name_rec.Reset()
         self.muted.clear()
 
 
-def split_wake_word(text):
+def split_wake_word(text, heard_name=False):
     """Return (heard_wake_word, rest_of_sentence).
 
-    "bolt what time is it" -> (True, "what time is it")
-    "hey bolt"             -> (True, "")
-    "what's for dinner"    -> (False, "")
+    "bolt what time is it"            -> (True, "what time is it")
+    "but what time is it" + name heard -> (True, "what time is it")
+    "what's for dinner"               -> (False, "")
     """
     words = text.lower().split()
     for i, w in enumerate(words):
         if w in config.WAKE_WORDS:
             return True, " ".join(words[i + 1:])
+    if heard_name:
+        # The name recogniser heard "Bolt"; drop the misheard name from the start of the sentence
+        for i, w in enumerate(words[:3]):
+            if w in SOUNDALIKES:
+                return True, " ".join(words[i + 1:])
+        return True, " ".join(words)
     return False, ""

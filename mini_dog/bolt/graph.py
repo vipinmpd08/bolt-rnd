@@ -2,7 +2,7 @@
 
     you said something
            |
-      supervisor  -- decides who should answer
+      supervisor  -- picks who answers, by keywords (instant, saves AI quota)
      /   |     |    |    \\
  chat helper news memory command
      \\   |     |    |    /
@@ -16,13 +16,12 @@
 """
 import logging
 import re
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, TypedDict
 
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
-from pydantic import BaseModel, Field
 
 from . import memory, tools
 
@@ -45,14 +44,6 @@ class State(TypedDict):
     route: str
     reply: str
     action: str
-
-
-class Route(BaseModel):
-    """Which agent should answer."""
-    agent: Literal["chat", "helper", "news"] = Field(
-        description="news for current events or what is happening somewhere; helper for the time, the date, "
-                    "maths or how Bolt's body/Pi is doing; chat for everything else"
-    )
 
 
 COMMANDS = [
@@ -83,7 +74,6 @@ def _system():
 
 
 def build(llm):
-    router = llm.with_structured_output(Route, method="function_calling") if llm else None
     tool_llm = llm.bind_tools(tools.ALL_TOOLS) if llm else None
     news_llm = llm.bind_tools([tools.get_news]) if llm else None
     tools_by_name = {t.name: t for t in tools.ALL_TOOLS}
@@ -126,12 +116,6 @@ def build(llm):
             route = "helper"
         else:
             route = "chat"
-        if router and route == "chat":
-            try:
-                route = router.invoke([SystemMessage(content="Pick the agent for this request."),
-                                       HumanMessage(content=state["text"])]).agent
-            except Exception as e:
-                log.warning("Router failed (%s), using chat", e)
         log.info("Supervisor -> %s", route)
         return {**update, "route": route}
 

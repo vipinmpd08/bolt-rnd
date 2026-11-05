@@ -55,9 +55,9 @@ def listen_forever():
 
     speak("Woof! Bolt is listening.")
     waiting_until = 0.0  # after a bare "Bolt", the next sentence is the question
-    for heard in ears.sentences():
-        log.info("Heard: %s", heard)
-        woke, rest = split_wake_word(heard)
+    for heard, heard_name in ears.sentences():
+        log.info("Heard: %s%s", heard, "  [name]" if heard_name else "")
+        woke, rest = split_wake_word(heard, heard_name)
         if bolt.asleep:
             if woke and "wake" in rest:
                 speak(bolt.answer(rest))
