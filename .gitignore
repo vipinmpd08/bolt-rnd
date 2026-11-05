@@ -17,3 +17,6 @@ venv/
 .vscode/
 .idea/
 .DS_Store
+
+# Mini dog runtime data
+mini_dog/data/

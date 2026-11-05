@@ -1,0 +1,22 @@
+services:
+  bolt:
+    build: .
+    image: bolt-mini-dog
+    container_name: app-bolt
+    restart: unless-stopped
+    env_file: .env
+    devices:
+      - /dev/snd:/dev/snd
+    group_add:
+      - audio
+    volumes:
+      - ./data:/data
+      - /etc/localtime:/etc/localtime:ro
+    # Keep the websites on this Pi fast
+    cpus: 2
+    mem_limit: 700m
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"
