@@ -15,6 +15,9 @@ RUN mkdir -p /models/piper \
  && curl -fsSL -o /models/piper/voice.onnx https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/joe/medium/en_US-joe-medium.onnx \
  && curl -fsSL -o /models/piper/voice.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/joe/medium/en_US-joe-medium.onnx.json
 
+# Vosk's library needs libatomic (a separate layer so earlier layers stay cached)
+RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && rm -rf /var/lib/apt/lists/*
+
 COPY bolt /app/bolt
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
