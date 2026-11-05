@@ -3,13 +3,14 @@
     you said something
            |
       supervisor  -- decides who should answer
-     /   |    |   \\
- chat helper memory command
-     \\   |    |   /
+     /   |     |    |    \\
+ chat helper news memory command
+     \\   |     |    |    /
           reply  -> spoken by Bolt
 
 - chat:    talks in character as a cheeky dog (AI model)
 - helper:  answers with tools: time, date, maths, how his body (the Pi) is doing
+- news:    reads live headlines (Google News) and tells you what's happening, in any country
 - memory:  remembers facts you tell him and recalls them
 - command: sleep, wake up, louder, quieter (no AI needed, instant)
 """
@@ -48,8 +49,9 @@ class State(TypedDict):
 
 class Route(BaseModel):
     """Which agent should answer."""
-    agent: Literal["chat", "helper"] = Field(
-        description="helper for the time, the date, maths or how Bolt's body/Pi is doing; chat for everything else"
+    agent: Literal["chat", "helper", "news"] = Field(
+        description="news for current events or what is happening somewhere; helper for the time, the date, "
+                    "maths or how Bolt's body/Pi is doing; chat for everything else"
     )
 
 
@@ -61,6 +63,7 @@ COMMANDS = [
     (r"^(stop|never mind|nothing|cancel|shut up|be quiet)$", "cancel"),
 ]
 MEMORY_PATTERNS = r"\b(remember|my name is|forget everything|what do you (remember|know about me))\b"
+NEWS_WORDS = r"\b(news|headlines?|happening|going on|latest|current events)\b"
 HELPER_WORDS = r"\b(time|date|day is it|today|plus|minus|times|divided|calculate|temperature|how hot|uptime)\b"
 
 
@@ -76,7 +79,28 @@ def _system():
 def build(llm):
     router = llm.with_structured_output(Route, method="function_calling") if llm else None
     tool_llm = llm.bind_tools(tools.ALL_TOOLS) if llm else None
+    news_llm = llm.bind_tools([tools.get_news]) if llm else None
     tools_by_name = {t.name: t for t in tools.ALL_TOOLS}
+
+    def tool_loop(bound, prompt, text):
+        """Let the AI call tools until it has an answer."""
+        msgs = [_system(), SystemMessage(content=prompt), HumanMessage(content=text)]
+        try:
+            for _ in range(4):
+                ai = bound.invoke(msgs)
+                msgs.append(ai)
+                if not ai.tool_calls:
+                    break
+                for call in ai.tool_calls:
+                    result = tools_by_name[call["name"]].invoke(call["args"])
+                    log.info("Tool %s(%s) -> %s", call["name"], call["args"], str(result)[:200])
+                    msgs.append(ToolMessage(content=str(result), tool_call_id=call["id"]))
+            reply = ai.content if isinstance(ai.content, str) else " ".join(
+                b.get("text", "") for b in ai.content if isinstance(b, dict))
+        except Exception as e:
+            log.error("Tool agent failed: %s", e)
+            reply = "Ruff, I lost my thought there. Ask me again?"
+        return {"reply": reply, "messages": [AIMessage(content=reply)]}
 
     def supervisor(state):
         text = state["text"].lower().strip()
@@ -89,7 +113,12 @@ def build(llm):
                 return {**update, "route": "command"}
         if re.search(MEMORY_PATTERNS, text):
             return {**update, "route": "memory"}
-        route = "helper" if re.search(HELPER_WORDS, text) else "chat"
+        if re.search(NEWS_WORDS, text):
+            route = "news"
+        elif re.search(HELPER_WORDS, text):
+            route = "helper"
+        else:
+            route = "chat"
         if router and route == "chat":
             try:
                 route = router.invoke([SystemMessage(content="Pick the agent for this request."),
@@ -122,23 +151,19 @@ def build(llm):
             else:
                 reply = "I can tell the time and date, but maths needs my AI brain."
             return {"reply": reply, "messages": [AIMessage(content=reply)]}
-        msgs = [_system(), HumanMessage(content=state["text"])]
-        try:
-            for _ in range(4):
-                ai = tool_llm.invoke(msgs)
-                msgs.append(ai)
-                if not ai.tool_calls:
-                    break
-                for call in ai.tool_calls:
-                    result = tools_by_name[call["name"]].invoke(call["args"])
-                    log.info("Tool %s(%s) -> %s", call["name"], call["args"], result)
-                    msgs.append(ToolMessage(content=str(result), tool_call_id=call["id"]))
-            reply = ai.content if isinstance(ai.content, str) else " ".join(
-                b.get("text", "") for b in ai.content if isinstance(b, dict))
-        except Exception as e:
-            log.error("Helper failed: %s", e)
-            reply = "Ruff, I lost my thought there. Ask me again?"
-        return {"reply": reply, "messages": [AIMessage(content=reply)]}
+        return tool_loop(tool_llm, "Use your tools to get facts before answering.", state["text"])
+
+    def news(state):
+        text = state["text"].lower()
+        if not news_llm:
+            country = next((v for k, v in tools.COUNTRIES.items() if re.search(rf"\b{k}\b", text)), "US")
+            headlines = tools.get_news.invoke({"country": country}).split(" | ")[:3]
+            reply = "Sniff sniff, the top news: " + ". ".join(headlines) + "."
+            return {"reply": reply, "messages": [AIMessage(content=reply)]}
+        return tool_loop(news_llm, (
+            "Fetch the latest headlines with get_news (pick the country and topic from the question), "
+            "then tell the 3 most important stories in about 4 short spoken sentences. Never invent news."
+        ), state["text"])
 
     def remember(state):
         text = state["text"].strip()
@@ -178,11 +203,13 @@ def build(llm):
     g.add_node("supervisor", supervisor)
     g.add_node("chat", chat)
     g.add_node("helper", helper)
+    g.add_node("news", news)
     g.add_node("memory", remember)
     g.add_node("command", command)
     g.add_edge(START, "supervisor")
     g.add_conditional_edges("supervisor", lambda s: s["route"],
-                            {"chat": "chat", "helper": "helper", "memory": "memory", "command": "command"})
-    for n in ("chat", "helper", "memory", "command"):
+                            {"chat": "chat", "helper": "helper", "news": "news",
+                             "memory": "memory", "command": "command"})
+    for n in ("chat", "helper", "news", "memory", "command"):
         g.add_edge(n, END)
     return g.compile(checkpointer=MemorySaver())

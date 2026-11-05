@@ -15,6 +15,7 @@ mic (always on) -> Vosk speech-to-text (offline) -> "Bolt" heard?
 | supervisor | Decides who answers (quick rules first, then the AI) | optional |
 | chat | Talks in character as a cheeky dog, remembers the conversation | yes |
 | helper | Uses tools: time, date, maths, the Pi's temperature and uptime | for maths |
+| news | Live headlines from Google News for any country or topic ("Bolt, what's happening in the US?") | to summarise |
 | memory | "Bolt, remember that...", "my name is...", "what do you remember", "forget everything" | no |
 | command | "go to sleep", "wake up", "louder", "quieter", "stop" | no |
 

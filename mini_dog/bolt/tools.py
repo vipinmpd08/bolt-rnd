@@ -3,6 +3,9 @@ import ast
 import datetime
 import operator
 import os
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
 
 from langchain_core.tools import tool
 
@@ -70,4 +73,32 @@ def body_status() -> str:
     return ", ".join(parts)
 
 
-ALL_TOOLS = [get_time, get_date, calculate, body_status]
+COUNTRIES = {"us": "US", "usa": "US", "america": "US", "india": "IN", "uae": "AE", "dubai": "AE",
+             "uk": "GB", "britain": "GB", "england": "GB", "australia": "AU", "canada": "CA"}
+
+
+@tool
+def get_news(topic: str = "", country: str = "US") -> str:
+    """Latest news headlines from Google News, right now.
+
+    topic: what to search for, e.g. "elections" or "cricket"; leave empty for top stories.
+    country: country code or name, e.g. "US", "India", "UAE", "UK".
+    """
+    gl = COUNTRIES.get(country.strip().lower(), country.strip().upper()[:2] or "US")
+    params = {"hl": f"en-{gl}", "gl": gl, "ceid": f"{gl}:en"}
+    if topic.strip():
+        params["q"] = topic.strip() + " when:1d"
+        url = "https://news.google.com/rss/search?" + urllib.parse.urlencode(params)
+    else:
+        url = "https://news.google.com/rss?" + urllib.parse.urlencode(params)
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Bolt the dog)"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            root = ET.fromstring(r.read())
+    except Exception as e:
+        return f"Could not fetch the news ({e})."
+    titles = [i.findtext("title", "").rsplit(" - ", 1)[0] for i in root.iter("item")][:6]
+    return " | ".join(titles) if titles else "No headlines found."
+
+
+ALL_TOOLS = [get_time, get_date, calculate, body_status, get_news]
