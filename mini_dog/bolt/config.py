@@ -23,6 +23,8 @@ STT_MODEL = _get("STT_MODEL", "whisper-large-v3-turbo")
 MIC_DEVICE = _get("MIC_DEVICE", "plughw:CARD=P3151,DEV=0")
 SPEAKER_DEVICE = _get("SPEAKER_DEVICE", "plughw:CARD=P3151,DEV=0")
 VOLUME = float(_get("VOLUME", "0.8"))
+# Above 1 makes his voice higher, like a cartoon dog (1 = the normal Piper voice)
+VOICE_PITCH = float(_get("VOICE_PITCH", "1.3"))
 
 # Words the speech model may hear when you say "Bolt"
 WAKE_WORDS = [w.strip().lower() for w in _get("WAKE_WORDS", "bolt,bold,volt,boult,bolts").split(",") if w.strip()]
