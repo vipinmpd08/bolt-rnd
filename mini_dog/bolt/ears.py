@@ -21,6 +21,7 @@ log = logging.getLogger("ears")
 
 RATE = 16000
 CHUNK = 4000  # bytes, about 1/8 second
+MAX_AUDIO = RATE * 2 * 30  # keep at most 30 s of one sentence
 
 # What the full recogniser writes when it mishears "Bolt" at the start of a sentence
 SOUNDALIKES = {"bolt", "bolts", "bold", "volt", "boult", "but", "bart", "bald", "board", "boat", "born",
@@ -42,21 +43,31 @@ class Ears:
         self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def sentences(self):
-        """Yield (text, heard_name) for every sentence, forever. Restarts the mic if it is unplugged."""
+        """Yield (text, heard_name, audio) for every sentence, forever. Restarts the mic if it is unplugged.
+
+        audio is the raw PCM of that sentence, for Whisper to transcribe properly.
+        """
         while True:
             self._start_mic()
+            audio = bytearray()
             while True:
                 data = self.proc.stdout.read(CHUNK)
                 if not data:
                     break
                 if self.muted.is_set():
+                    audio.clear()
                     continue
+                audio += data
+                del audio[:-MAX_AUDIO]
                 self.name_rec.AcceptWaveform(data)
                 if self.rec.AcceptWaveform(data):
                     text = json.loads(self.rec.Result()).get("text", "").strip()
                     name = json.loads(self.name_rec.FinalResult()).get("text", "")
                     if text:
-                        yield text, "bolt" in name.split()
+                        yield text, "bolt" in name.split(), bytes(audio)
+                    audio.clear()
+                elif not json.loads(self.rec.PartialResult()).get("partial"):
+                    del audio[:-RATE * 2]  # nothing said yet: keep just the last second
             err = self.proc.stderr.read().decode(errors="ignore").strip()
             log.warning("Mic stopped (%s). Retrying in 5 s.", err or "no error text")
             time.sleep(5)

@@ -15,6 +15,10 @@ XAI_MODEL = _get("XAI_MODEL", "grok-3-mini")
 ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
 CLAUDE_MODEL = _get("CLAUDE_MODEL", "claude-haiku-5-5")
 
+# Accurate speech-to-text for your question: groq (Whisper, uses GROQ_API_KEY) or vosk (offline only)
+STT_PROVIDER = _get("STT_PROVIDER", "groq").lower()
+STT_MODEL = _get("STT_MODEL", "whisper-large-v3-turbo")
+
 # Audio devices. Using the card name (not its number) keeps working if the number changes.
 MIC_DEVICE = _get("MIC_DEVICE", "plughw:CARD=P3151,DEV=0")
 SPEAKER_DEVICE = _get("SPEAKER_DEVICE", "plughw:CARD=P3151,DEV=0")

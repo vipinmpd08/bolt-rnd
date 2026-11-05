@@ -1,6 +1,8 @@
 """Bolt's brain: a LangGraph team of agents.
 
-    you said something
+    you said something (audio)
+           |
+      transcribe  -- Whisper turns your audio into accurate text
            |
       supervisor  -- picks who answers, by keywords (instant, saves AI quota)
      /   |     |    |    \\
@@ -8,6 +10,7 @@
      \\   |     |    |    /
           reply  -> spoken by Bolt
 
+- transcribe: Whisper on Groq writes down what you said (falls back to the offline Vosk text)
 - chat:    talks in character as a cheeky dog (AI model)
 - helper:  answers with tools: time, date, maths, how his body (the Pi) is doing
 - news:    reads live headlines (Google News) and tells you what's happening, in any country
@@ -23,7 +26,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 
-from . import memory, tools
+from . import memory, stt, tools
 
 log = logging.getLogger("brain")
 
@@ -40,7 +43,8 @@ PERSONA = (
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
-    text: str
+    text: str         # what Vosk heard (replaced by Whisper's text in transcribe)
+    audio_id: str     # key into the waiting audio; the audio itself stays out of the saved state
     route: str
     reply: str
     action: str
@@ -73,7 +77,14 @@ def _system():
     return SystemMessage(content="\n".join(x for x in (PERSONA, _facts_text()) if x))
 
 
-def build(llm):
+def _plain(text):
+    """Lowercase without punctuation, for the keyword rules."""
+    return " ".join(re.sub(r"[^\w\s']", " ", text.lower()).split())
+
+
+def build(llm, whisper=None, audio_store=None):
+    """audio_store: dict of audio_id -> raw PCM; transcribe takes (and removes) the audio from it."""
+    audio_store = audio_store if audio_store is not None else {}
     tool_llm = llm.bind_tools(tools.ALL_TOOLS) if llm else None
     news_llm = llm.bind_tools([tools.get_news]) if llm else None
     tools_by_name = {t.name: t for t in tools.ALL_TOOLS}
@@ -99,8 +110,17 @@ def build(llm):
             reply = "Ruff, I lost my thought there. Ask me again?"
         return {"reply": reply, "messages": [AIMessage(content=reply)]}
 
+    def transcribe(state):
+        audio = audio_store.pop(state.get("audio_id") or "", None)
+        text = whisper.transcribe(audio) if whisper and audio else None
+        if text is None:
+            return {"audio_id": ""}
+        text = stt.strip_name(text) or state["text"]
+        log.info("Whisper: %s  (Vosk: %s)", text, state["text"])
+        return {"text": text, "audio_id": ""}
+
     def supervisor(state):
-        text = state["text"].lower().strip()
+        text = _plain(state["text"])
         update = {"messages": [HumanMessage(content=state["text"])], "action": "", "reply": ""}
         # Drop old turns so memory use stays flat
         if len(state.get("messages", [])) > KEEP:
@@ -166,11 +186,11 @@ def build(llm):
             facts = memory.load_facts()
             reply = ("I remember: " + "; ".join(facts[-5:]) + ".") if facts else "Nothing yet. Tell me something!"
         else:
-            m = re.search(r"my name is (.+)", low)
+            m = re.search(r"my name is ([\w' -]+)", low)
             if m:
                 fact = f"The person talking is called {m.group(1).strip().title()}"
             else:
-                fact = re.sub(r"^.*?\bremember( that)?\s*", "", text, flags=re.I).strip()
+                fact = re.sub(r"^.*?\bremember( that)?\W*", "", text, flags=re.I).strip(" .!?")
             if fact:
                 memory.add_fact(fact)
                 reply = "Got it, I'll remember that. Woof!"
@@ -179,7 +199,7 @@ def build(llm):
         return {"reply": reply, "messages": [AIMessage(content=reply)]}
 
     def command(state):
-        text = state["text"].lower()
+        text = _plain(state["text"])
         action = next(a for p, a in COMMANDS if re.search(p, text))
         reply = {
             "sleep": "Okay, nap time. Say Bolt wake up when you need me.",
@@ -191,13 +211,15 @@ def build(llm):
         return {"reply": reply, "action": action, "messages": [AIMessage(content=reply)]}
 
     g = StateGraph(State)
+    g.add_node("transcribe", transcribe)
     g.add_node("supervisor", supervisor)
     g.add_node("chat", chat)
     g.add_node("helper", helper)
     g.add_node("news", news)
     g.add_node("memory", remember)
     g.add_node("command", command)
-    g.add_edge(START, "supervisor")
+    g.add_edge(START, "transcribe")
+    g.add_edge("transcribe", "supervisor")
     g.add_conditional_edges("supervisor", lambda s: s["route"],
                             {"chat": "chat", "helper": "helper", "news": "news",
                              "memory": "memory", "command": "command"})
