@@ -145,7 +145,7 @@ def build(llm, whisper=None, audio_store=None):
             return {**clear, "route": "answer"}
         text = _plain(state["text"])
         if text in NOISE or len(text.split()) < 2:
-            log.info("Router: ignore (too short or noise): %s", state["text"])
+            log.info("Router: for Bolt? NO (too short or noise) -> ignored: %s", state["text"])
             return {**clear, "route": "ignore"}
         if not gate_llm:
             return {**clear, "route": "answer"}
@@ -160,7 +160,8 @@ def build(llm, whisper=None, audio_store=None):
             log.warning("Router failed (%s), ignoring", e)
             verdict = "NO"
         route = "answer" if verdict.startswith("YES") else "ignore"
-        log.info("Router: %s (%s): %s", route, verdict[:10], state["text"])
+        log.info("Router: for Bolt? %s -> %s: %s", "YES" if route == "answer" else "NO",
+                 "answering" if route == "answer" else "ignored", state["text"])
         return {**clear, "route": route}
 
     def supervisor(state):
