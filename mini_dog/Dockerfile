@@ -18,6 +18,15 @@ RUN mkdir -p /models/piper \
 # Vosk's library needs libatomic (a separate layer so earlier layers stay cached)
 RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && rm -rf /var/lib/apt/lists/*
 
+# Real bark recordings from SunFounder's PiDog project (GPL-2.0), fetched at build time
+# rather than copied into this repo, and turned into WAV files
+ARG PIDOG_SOUNDS=https://raw.githubusercontent.com/sunfounder/pidog/cee4bff0874641143c1dad101a40ba88897a4c20/sounds
+RUN apt-get update && apt-get install -y --no-install-recommends mpg123 && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /sounds && cd /sounds \
+ && for f in single_bark_1 single_bark_2; do \
+      curl -fsSL -o $f.mp3 $PIDOG_SOUNDS/$f.mp3 && mpg123 -q -m -w $f.wav $f.mp3 && rm $f.mp3; \
+    done
+
 COPY bolt /app/bolt
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1

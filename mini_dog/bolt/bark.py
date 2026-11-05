@@ -1,41 +1,44 @@
-"""Synthetic dog barks, made in code so there are no sound files to download.
+"""Real dog barks: recordings from SunFounder's PiDog project, fetched when the image is built.
 
-A bark is a short burst: a sharp attack, a pitch that jumps up and falls, a few
-rough harmonics and some breathy noise, then a quick fade.
+The WAV files live in /sounds (see the Dockerfile). Each bark picks one of them at random.
 """
 import array
-import math
+import glob
+import logging
 import random
+import wave
 
-RATE = 22050
+log = logging.getLogger("bark")
 
-
-def _one_bark(start_hz, end_hz, length, rng):
-    n = int(RATE * length)
-    out = []
-    phase = 0.0
-    for i in range(n):
-        t = i / n
-        # Pitch jumps up a little in the first 15%, then falls
-        f = start_hz * (1 + 0.25 * t / 0.15) if t < 0.15 else start_hz * 1.25 + (end_hz - start_hz * 1.25) * (t - 0.15) / 0.85
-        phase += 2 * math.pi * f / RATE
-        tone = (math.sin(phase) + 0.6 * math.sin(2 * phase) + 0.35 * math.sin(3 * phase)
-                + 0.2 * math.sin(4 * phase))
-        tone = math.tanh(1.8 * tone)  # growl: clip the wave
-        noise = rng.uniform(-1, 1)
-        env = min(1.0, t / 0.03) * math.exp(-4.5 * t)  # fast attack, quick decay
-        out.append(env * (0.8 * tone + 0.35 * noise))
-    return out
+SOUNDS_DIR = "/sounds"
 
 
-def bark_pcm(count=1, volume=0.8, seed=None):
-    """Raw 16-bit mono PCM at 22050 Hz: `count` barks with short gaps."""
-    rng = random.Random(seed)
-    samples = []
-    for k in range(count):
-        base = rng.uniform(420, 560)
-        samples += _one_bark(base, base * 0.55, rng.uniform(0.16, 0.22), rng)
-        samples += [0.0] * int(RATE * (0.12 if k < count - 1 else 0.08))
-    peak = max(abs(s) for s in samples) or 1.0
-    pcm = array.array("h", (int(32000 * volume * s / peak) for s in samples))
-    return pcm.tobytes()
+def _load():
+    clips = []
+    for path in sorted(glob.glob(f"{SOUNDS_DIR}/*bark*.wav")):
+        with wave.open(path) as w:
+            if w.getsampwidth() == 2 and w.getnchannels() == 1:
+                clips.append((w.getframerate(), w.readframes(w.getnframes())))
+    if clips:
+        log.info("Loaded %d bark sounds", len(clips))
+    else:
+        log.warning("No bark sounds found in %s", SOUNDS_DIR)
+    return clips
+
+
+CLIPS = _load()
+
+
+def bark_pcm(count=1, volume=0.8):
+    """(raw 16-bit mono PCM, sample rate) for `count` barks with short gaps, or (b"", 0) if none."""
+    if not CLIPS:
+        return b"", 0
+    rate = CLIPS[0][0]
+    clips = [pcm for r, pcm in CLIPS if r == rate]
+    gap = b"\0\0" * int(rate * 0.08)
+    out = array.array("h")
+    for _ in range(count):
+        out.frombytes(random.choice(clips) + gap)
+    for i, s in enumerate(out):
+        out[i] = int(s * volume)
+    return out.tobytes(), rate

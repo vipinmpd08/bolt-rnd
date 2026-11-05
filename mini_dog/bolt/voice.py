@@ -2,7 +2,7 @@
 
 To sound like a cartoon dog rather than a grown man, speech is made slower and
 then played faster (VOICE_PITCH), which raises the pitch without speeding him up.
-Every "woof" or "ruff" in a reply is played as a real bark sound instead.
+Every "woof" or "ruff" in a reply is played as a recorded bark instead.
 
 The voice is loaded once, and each sentence starts playing as soon as it is ready,
 so Bolt begins talking while the rest of his answer is still being made.
@@ -14,7 +14,7 @@ import re
 import subprocess
 
 from . import config
-from .bark import RATE as BARK_RATE, bark_pcm
+from .bark import bark_pcm
 
 log = logging.getLogger("voice")
 
@@ -45,7 +45,11 @@ class Voice:
                         "-r", str(rate), "-c", "1"], input=pcm, timeout=60)
 
     def bark(self, count=1):
-        self._play(bark_pcm(count, self.volume), BARK_RATE)
+        pcm, rate = bark_pcm(count, self.volume)
+        if pcm:
+            self._play(pcm, rate)
+        else:
+            self._speak("woof " * count)
 
     def _say_piper(self, text):
         from piper import SynthesisConfig
