@@ -156,7 +156,7 @@ def mic():
         return False
     card = cards[0].split()[1].rstrip(":")
     print(f"  found: {cards[0]}")
-    wav = "/tmp/bolt_mic.wav"
+    wav = os.path.expanduser("~/bolt_mic.wav")
     print("  Talk now for 3 seconds...")
     rec = subprocess.run(["arecord", "-D", f"plughw:{card},0", "-f", "S16_LE", "-r", "16000",
                           "-c", "1", "-d", "3", "-q", wav], capture_output=True, text=True)
@@ -197,6 +197,10 @@ TESTS = {
     "mic": ("USB microphone", mic),
     "camera": ("Camera", camera),
 }
+if os.geteuid() == 0:
+    sys.exit("Please run without sudo: python3 bench_test.py ...\n"
+             "Under sudo the sound can't reach Bolt's speaker.")
+
 args = sys.argv[1:]
 if args[:1] == ["servo"]:
     if len(args) != 2 or not args[1].isdigit() or not 0 <= int(args[1]) <= 11:

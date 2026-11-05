@@ -20,3 +20,6 @@ venv/
 
 # Mini dog runtime data
 mini_dog/data/
+
+# Downloaded packages
+*.whl
