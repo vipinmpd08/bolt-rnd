@@ -30,7 +30,7 @@ Without an API key Bolt still runs offline: time, date, memory and commands work
 
 ```
 cd ~/projects/bolt
-nano .env                 # add XAI_API_KEY (or LLM_PROVIDER=claude + ANTHROPIC_API_KEY)
+nano .env                 # GROQ_API_KEY (default), or LLM_PROVIDER=grok/claude with its key
 docker compose up -d --build
 docker logs -f app-bolt   # watch what he hears and says
 ```

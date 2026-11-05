@@ -72,6 +72,12 @@ def _facts_text():
     return ("Things you remember: " + "; ".join(facts)) if facts else ""
 
 
+def _clean(text):
+    """Drop hidden reasoning some models (like Qwen) put in <think> tags."""
+    text = re.sub(r"<think>.*?(</think>|$)", "", text, flags=re.S)
+    return re.sub(r"[*_#`]", "", text).strip()  # markdown marks would be read out loud
+
+
 def _system():
     return SystemMessage(content="\n".join(x for x in (PERSONA, _facts_text()) if x))
 
@@ -97,6 +103,7 @@ def build(llm):
                     msgs.append(ToolMessage(content=str(result), tool_call_id=call["id"]))
             reply = ai.content if isinstance(ai.content, str) else " ".join(
                 b.get("text", "") for b in ai.content if isinstance(b, dict))
+            reply = _clean(reply)
         except Exception as e:
             log.error("Tool agent failed: %s", e)
             reply = "Ruff, I lost my thought there. Ask me again?"
@@ -133,7 +140,7 @@ def build(llm):
             reply = "Woof! My big brain isn't plugged in yet. Add my API key and I'll chat all day."
         else:
             try:
-                reply = llm.invoke([_system()] + state["messages"][-HISTORY:]).content
+                reply = _clean(llm.invoke([_system()] + state["messages"][-HISTORY:]).content)
             except Exception as e:
                 log.error("Chat failed: %s", e)
                 reply = "Ruff, my brain is fuzzy right now. Try again in a moment."

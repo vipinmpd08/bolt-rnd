@@ -6,8 +6,10 @@ def _get(name, default=""):
     return os.environ.get(name, default).strip()
 
 
-# Which AI service Bolt thinks with: grok, claude, or none (offline, no API key needed)
-LLM_PROVIDER = _get("LLM_PROVIDER", "grok").lower()
+# Which AI service Bolt thinks with: groq, grok, claude, or none (offline, no API key needed)
+LLM_PROVIDER = _get("LLM_PROVIDER", "groq").lower()
+GROQ_API_KEY = _get("GROQ_API_KEY")
+GROQ_MODEL = _get("GROQ_MODEL", "qwen/qwen3.8-27b")
 XAI_API_KEY = _get("XAI_API_KEY")
 XAI_MODEL = _get("XAI_MODEL", "grok-3-mini")
 ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
